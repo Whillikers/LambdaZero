@@ -1,0 +1,49 @@
+name:                LambdaZero
+version:             0.1.0.0
+github:              "Whillikers/LambdaZero"
+license:             BSD3
+author:              "Aidan Swope and Evan Gunter"
+maintainer:          "aidanswope@gmail.com"
+copyright:           "Copyright (c) 2019 Aidan Swope and Evan Gunter"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Theorem Provers
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/Whillikers/LambdaZero#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- Folly
+
+library:
+  source-dirs: src
+
+executables:
+  LambdaZero-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - LambdaZero
+
+tests:
+  LambdaZero-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - LambdaZero
