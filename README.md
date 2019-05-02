@@ -1,5 +1,5 @@
-# deep-atp
-Work on applying deep learning to automatic theorem proving. 
+# LambdaZero
+Work on applying machine learning to automatic theorem proving.
 
 [Progress document here.](https://docs.google.com/document/d/1LtGff4T2fct5dZPOn7hBSuinFtVLcyv8W9lRGx-Ue3w/edit?usp=sharing)
 
