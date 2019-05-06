@@ -3,4 +3,4 @@ module Main where
 import Prover
 
 main :: IO ()
-main = someFunc
+main = putStrLn "TODO: main program interface"
