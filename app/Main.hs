@@ -1,6 +1,6 @@
 module Main where
 
-import Prover
+import PropositionalProver
 
 main :: IO ()
 main = putStrLn "TODO: main program interface"
