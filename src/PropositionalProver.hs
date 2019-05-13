@@ -17,7 +17,7 @@ b = F.pr "P" [F.constant "x"]
 c = F.pr "P" [F.constant "y"]
 thmProp = T.theorem [a, b] c
 
--- Prove a statement of prepositional logic
+-- Prove a statement of propositional logic
 prove :: T.Theorem -> Bool
 prove thm =
     let axioms = T.hypothesis thm
