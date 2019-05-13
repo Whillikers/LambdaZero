@@ -34,10 +34,11 @@ resolver: lts-13.19
 #  - wai
 packages:
 - .
+- ./Folly
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
-extra-deps: ['Folly-0.2.0.1@sha256:5a5d4f7610ac4778a92f840c9ce7e9c30707bfb4b5cf0c07752882803928545a']
+# extra-deps: ['Folly-0.2.0.1@sha256:5a5d4f7610ac4778a92f840c9ce7e9c30707bfb4b5cf0c07752882803928545a']
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

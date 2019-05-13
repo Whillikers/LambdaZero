@@ -6,9 +6,9 @@ module PropositionalProver
 import Control.Exception (assert)
 import qualified Data.Set as S
 
-import Folly.Formula as F
-import Folly.Theorem as T
-import Folly.Unification as U
+import qualified Folly.Formula as F
+import qualified Folly.Theorem as T
+import qualified Folly.Unification as U
 
 -- Test expressions for propositional logic
 -- TODO: remove
