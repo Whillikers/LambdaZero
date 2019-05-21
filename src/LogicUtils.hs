@@ -1,5 +1,7 @@
 module LogicUtils where
 
+import Data.Maybe
+import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Map.Strict as Map
 
@@ -22,30 +24,39 @@ literalToTerm (N (P name vars)) = Func name vars
 literalToTerm _ = error "formula must be a literal"
 
 -- Unification
-idUnifier :: U.Unifier
-idUnifier = Map.empty
+idUnifier = Map.empty :: U.Unifier
 
--- composeUnifiers :: U.Unifier -> U.Unifier -> U.Unifier
--- TODO
+composeUnif :: U.Unifier -> U.Unifier -> U.Unifier
+composeUnif u1 u2 =
+    let l1 = Map.toList u1
+        l2 = Map.toList u2
+        u2' = [(k, U.applyUnifier u1 v) | (k, v) <- l2]
+        (domain, _) = unzip u2'
+        u1' = filter (\(k, v) -> notElem k domain) l1
+        simplified = (filter (\(k, v) -> k /= v) u2') ++ u1'
+     in Map.fromList simplified
 
-termMGUs :: F.Term -> F.Term -> [U.Unifier]
-termMGUs (Constant x) (Constant y) = if x == y then [idUnifier] else []
-termMGUs x@(Constant _) y@(Var _) = [Map.singleton y x]
-termMGUs (Constant x) (Func y []) = if x == y then [idUnifier] else []
-termMGUs (Constant x) (Func _ _) = []
-termMGUs x@(Var name1) y@(Var name2)
-  | name1 == name2 = [idUnifier]
-  | otherwise = [Map.fromList [(x, y), (y, x)]] -- TODO: do we need both?
-termMGUs x@(Var _) y@(Func _ funcTerms)
-  | elem x funcTerms = []
-  | otherwise = [Map.singleton x y]
-termMGUs x@(Func name1 terms1) y@(Func name2 terms2)
-  | name1 /= name2 = []
-  | otherwise = listMGUs terms1 terms2
-termMGUs x y = termMGUs y x
+termMGU :: F.Term -> F.Term -> Maybe U.Unifier
+termMGU (Constant x) (Constant y) = if x == y then Just idUnifier else Nothing
+termMGU x@(Constant _) y@(Var _) = Just (Map.singleton y x)
+termMGU (Constant x) (Func y []) = if x == y then Just idUnifier else Nothing
+termMGU (Constant x) (Func _ _) = Nothing
+termMGU x@(Var name1) y@(Var name2)
+  | name1 == name2 = Just idUnifier
+  | otherwise = Just (Map.fromList [(x, y)])
+termMGU x@(Var _) y@(Func _ funcTerms)
+  | elem x funcTerms = Nothing
+  | otherwise = Just (Map.singleton x y)
+termMGU x@(Func name1 terms1) y@(Func name2 terms2)
+  | name1 /= name2 = Nothing
+  | otherwise = listMGU terms1 terms2
+termMGU x y = termMGU y x
 
-listMGUs :: [F.Term] -> [F.Term] -> [U.Unifier]
-listMGUs [] [] = [idUnifier]
-listMGUs [] (_:_) = []
-listMGUs (_:_) [] = []
--- TODO: finish
+listMGU :: [F.Term] -> [F.Term] -> Maybe U.Unifier
+listMGU [] [] = Just idUnifier
+listMGU [] (_:_) = Nothing
+listMGU (_:_) [] = Nothing
+listMGU (x:xs) (y:ys) = do
+    u1 <- termMGU x y
+    u2 <- listMGU (map (U.applyUnifier u1) xs) (map (U.applyUnifier u1) ys)
+    Just (composeUnif u2 u1)

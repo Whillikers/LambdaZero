@@ -39,6 +39,7 @@ packages:
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 # extra-deps: ['Folly-0.2.0.1@sha256:5a5d4f7610ac4778a92f840c9ce7e9c30707bfb4b5cf0c07752882803928545a']
+extra-deps: ['transformers-supply-0.1.0@sha256:a71d9b6685a09193aab4811c73f53a6eddc6d606f6daf0337ab256e5eae7f2dc']
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
