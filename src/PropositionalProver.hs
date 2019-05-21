@@ -1,7 +1,4 @@
-module PropositionalProver
-    -- TODO: expose interface
-    -- (prove)
-      where
+module PropositionalProver (prove) where
 
 import Control.Exception (assert)
 import qualified Data.Set as S
@@ -9,13 +6,6 @@ import qualified Data.Set as S
 import qualified Folly.Formula as F
 import qualified Folly.Theorem as T
 import qualified Folly.Unification as U
-
--- Test expressions for propositional logic
--- TODO: remove
-a = F.imp (F.pr "P" [F.constant "x"]) (F.pr "P" [F.constant "y"])
-b = F.pr "P" [F.constant "x"]
-c = F.pr "P" [F.constant "y"]
-thmProp = T.theorem [a, b] c
 
 -- Prove a statement of propositional logic
 prove :: T.Theorem -> Bool
