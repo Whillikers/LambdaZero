@@ -4,9 +4,12 @@ module FOLProver
     -- (prove)
       where
 
+import Debug.Trace
+
 import Control.Exception (assert)
 import Data.Maybe
 import Data.Either
+import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 
@@ -19,14 +22,7 @@ import qualified Folly.Theorem as T
 import qualified Folly.Unification as U
 import Folly.Formula (Term (..), Formula (..))
 
-import qualified LogicUtils as L
-
--- Test expressions for first-order logic
--- TODO: remove
-d = F.dis (F.neg $ F.pr "P" [F.constant "a"])  (F.pr "Q" [F.constant "b"])
-e = F.fa (F.var "x") (F.pr "P" [F.var "x"])
-g = F.pr "P" [F.constant "b"]
-thmFOL = T.theorem [d, e] g
+import qualified LogicUtils as LU
 
 -- Positive literals, negative literals, unexpanded formulas
 data Branch = Br (S.Set F.Term) (S.Set F.Term) [F.Formula]
@@ -49,20 +45,21 @@ prove thm depth =
     depthExpand :: Tableau -> Int -> (Supply String) Tableau
     depthExpand tab 0 = return tab
     depthExpand tab d = do
-        let open = filter (not . fullyExpanded) tab
-        step <- mapM expand open
-        depthExpand (concat step) (d - 1)
+        let (exp, unExp) = L.partition fullyExpanded tab
+        step <- mapM expand unExp
+        depthExpand (concat step ++ exp) (d - 1)
 
     -- Expand the chosen branch until a gamma-rule, returning all sub-branches
     -- None if the branch is fully expanded
     expand :: Branch -> (Supply String) [Branch]
+    -- expand b | trace ("expanding branch: " ++ show b) False = undefined
     expand branch@(Br _ _ []) = return [branch] -- Full expansion
     expand (Br pos neg (atom@(P _ _) : unExp)) = -- Positive literal
-        let lit = L.literalToTerm atom in
+        let lit = LU.literalToTerm atom in
             if S.member lit neg then return []
                                 else expand (Br (S.insert lit pos) neg unExp)
     expand (Br  pos neg ((N atom@(P _ _)) : unExp)) = -- Negative literal
-        let lit = L.literalToTerm atom in
+        let lit = LU.literalToTerm atom in
             if S.member lit pos then return []
                                 else expand (Br pos (S.insert lit neg) unExp)
     expand (Br pos neg ((B "&" x y):unExp)) = -- Alpha-rule (conjunction)
@@ -81,12 +78,12 @@ prove thm depth =
     -- List of all MGUs that would close the branch
     branchMGUs :: Branch -> [U.Unifier]
     branchMGUs (Br pos neg _) =
-        let maybeSet = S.map (uncurry L.termMGU) (S.cartesianProduct pos neg)
+        let maybeSet = S.map (uncurry LU.termMGU) (S.cartesianProduct pos neg)
          in S.toList . (S.map fromJust) . (S.filter isJust) $ maybeSet
 
     -- Lazy list of all MGUs that would close the tableau
     tabMGUs :: Tableau -> [U.Unifier]
-    tabMGUs [] = [L.idUnifier]
+    tabMGUs [] = [LU.idUnifier]
     tabMGUs [branch] = branchMGUs branch
     tabMGUs (b:tab) = concat [tabMGUs (subTab u tab) | u <- branchMGUs b]
 
