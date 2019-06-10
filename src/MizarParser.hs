@@ -1,3 +1,5 @@
+module MizarParser where
+
 import qualified Data.List.NonEmpty as DLNE
 
 inputFile = "./statements.txt"
@@ -30,7 +32,7 @@ translate stringFormula = putBackName name formula
                  $ (delSplit ',' ((mRevOrder (delStr "]")) s)),
                  (delStr "]") r)
       where (s, r) = DLNE.unzip $ fmap (break (\c -> c == ']')) $ (delStr "[") x
-    
+
     putBackName n r = case (n, r) of
       (Nothing, _)     -> Nothing
       (_, Nothing)     -> Nothing
@@ -74,7 +76,7 @@ delParens = (fmap delSpaces) . (fmap (\s -> let d = delSpaces s in
                                                  && (last d == ')')
                                               then drop 1 $ (revOrder (drop 1)) d
                                               else failureString))
-      
+
 stringify x = case x of
   Just s -> s ++ "\n"
   Nothing -> failureString ++ "\n"
