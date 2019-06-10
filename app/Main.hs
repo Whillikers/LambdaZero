@@ -1,6 +1,6 @@
 module Main where
 
-import Prover
+import FOLProver
 
 main :: IO ()
 main = putStrLn "TODO: main program interface"

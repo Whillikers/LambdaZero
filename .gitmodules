@@ -1,0 +1,3 @@
+[submodule "Folly"]
+	path = Folly
+	url = git@github.com:dillonhuff/Folly.git
