@@ -47,8 +47,8 @@ language =
         PT.commentEnd = "*/",
         PT.commentLine = "%",
         PT.nestedComments = False,
-        PT.identStart = alphaNum <|> char '_' :: StringParser Char,
-        PT.identLetter = alphaNum <|> char '_' :: StringParser Char,
+        PT.identStart = alphaNum <|> char '_',
+        PT.identLetter = alphaNum <|> char '_',
         PT.opStart = oneOf $ map head opNames,
         PT.opLetter = oneOf $ foldr1 List.union opNames,
         PT.reservedNames = [],
@@ -89,10 +89,11 @@ namedFormula = do
     return (name, role, form)
 
 -- Expression parser
+logicFormula :: StringParser Formula
 -- logicFormula = unaryFormula <|> try binaryFormula <|> unitaryFormula :: StringParser Formula
-logicFormula = unaryFormula <|> unitaryFormula :: StringParser Formula
-unitFormula = unitaryFormula <|> unaryFormula :: StringParser Formula
-unitaryFormula = quantifiedFormula <|> atomicFormula <|> parens logicFormula :: StringParser Formula
+logicFormula = unaryFormula <|> unitaryFormula
+unitFormula = unitaryFormula <|> unaryFormula
+unitaryFormula = quantifiedFormula <|> atomicFormula <|> parens logicFormula
 
 atomicFormula = try atomicPredicate <|> atomicConstant
 atomicConstant = (flip F.pr []) <$> ident
@@ -102,12 +103,10 @@ atomicPredicate = do
     return (F.pr predicate args)
 
 
-term = try func <|> constant :: StringParser Term
-func = F.func <$> ident <*> (parens $ commaSep1 $ term) :: StringParser Term
-variable = F.var <$> ident :: StringParser Term
-constant = F.constant <$> ident :: StringParser Term
+term = try func <|> variable
+func = F.func <$> ident <*> (parens $ commaSep1 $ term)
+variable = F.var <$> ident
 
-unaryFormula :: StringParser Formula
 unaryFormula = do
     reservedOp "~"
     form <- unitFormula
