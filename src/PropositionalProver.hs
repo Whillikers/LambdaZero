@@ -5,7 +5,6 @@ import qualified Data.Set as S
 
 import qualified Folly.Formula as F
 import qualified Folly.Theorem as T
-import qualified Folly.Unification as U
 
 -- Prove a statement of propositional logic
 prove :: T.Theorem -> Bool
@@ -20,7 +19,7 @@ prove thm =
          (refute clauses S.empty)
   where
     refute :: [[F.Formula]] -> S.Set F.Formula -> Bool
-    refute [] lits = False
+    refute [] _ = False
     refute (clause : rest) lits = and $ map (close rest lits) clause
 
     close :: [[F.Formula]] -> S.Set F.Formula -> F.Formula -> Bool
