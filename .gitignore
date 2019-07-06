@@ -1,5 +1,6 @@
 ## Project-specific
 data/
+tptp/
 
 ## Stack
 .stack-work/

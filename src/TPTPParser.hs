@@ -3,135 +3,105 @@
 
 module TPTPParser where
 
-import qualified Data.List as List
-import Data.Maybe
 import Data.Either
+import Data.Maybe (catMaybes)
+import Data.List.NonEmpty (toList)
+import Data.List (intercalate)
+import Data.Text (pack)
+import System.FilePath
 
-import Text.Printf
-
-import Text.Parsec
-import Text.Parsec.Language
-import Text.Parsec.Expr
-import qualified Text.Parsec.Token as PT
+import qualified Data.TPTP as T
+import Data.TPTP.Parse.Text (parseUnitOnly)
+import Data.TPTP.Pretty (pretty)
 
 import qualified Folly.Formula as F
 import Folly.Formula (Term (..), Formula (..))
 
-inputFile = "./data/mizar_examples.txt"
--- inputFile = "./data/mizar_statements.txt"
-outputFile = "./data/mizar_statements_folly.txt"
+inputFile = "./data/mizar_statements.txt"
 
-main = do
-  content <- readFile inputFile
-  let statementStrings = lines content
-  let folly_statements = mapMaybe translate statementStrings
-  writeFile outputFile (concatMap show folly_statements)
+-- Type of Folly formulas with names
+newtype NamedFormula = Named (String, F.Formula) deriving (Eq, Ord)
 
-translate :: String -> Maybe Formula
-translate s = case (parse namedFormula "" s) of
+instance Show NamedFormula where
+  show (Named (name, form)) = name ++ ": " ++ (show form)
+
+namedFormula name form = Named (name, form)
+formulaName (Named form) = fst form
+formulaForm (Named form) = snd form
+
+-- Top-level conversion functions
+stringToFolly :: String -> Maybe NamedFormula
+stringToFolly s = case stringToUnit s of
     Left _ -> Nothing
-    Right (name, role, form) -> Just form
+    Right unit -> Just (namedFormula (unitName unit) (unitFolly unit))
 
+stringsToFolly :: [String] -> [NamedFormula]
+stringsToFolly strings = catMaybes (map stringToFolly strings)
 
-type StringParser = Parsec String ()
+fileToFolly :: String -> IO [NamedFormula]
+fileToFolly path = (readFile path) >>= (return . stringsToFolly . lines)
 
--- Language definition and lexer
-quantNames = ["?", "!"]
-binaryConnectiveNames = ["<=>", "=>", "&", "|"]
-connectiveNames = "~" : binaryConnectiveNames
-opNames = quantNames ++ connectiveNames
+-- TODO: add Mizar standard axioms
+translateFile :: String -> IO ()
+translateFile inputPath = do
+    forms <- fileToFolly inputPath
+    let (basePath, ext) = splitExtension inputPath
+    let outputPath = basePath ++ "_folly" ++ ext
+    let outputData = intercalate "\n" (map show forms)
+    writeFile outputPath outputData
 
-language =
-    PT.LanguageDef {
-        PT.commentStart = "/*",
-        PT.commentEnd = "*/",
-        PT.commentLine = "%",
-        PT.nestedComments = False,
-        PT.identStart = alphaNum <|> char '_',
-        PT.identLetter = alphaNum <|> char '_',
-        PT.opStart = oneOf $ map head opNames,
-        PT.opLetter = oneOf $ foldr1 List.union opNames,
-        PT.reservedNames = [],
-        PT.reservedOpNames = opNames,
-        PT.caseSensitive = True
-    }
+-- Work with TPTP Units
+stringToUnit :: String -> Either String T.Unit
+stringToUnit = parseUnitOnly . pack
 
-lexer = PT.makeTokenParser language
-ident = PT.identifier lexer
-symbol = PT.symbol lexer
-lexeme = PT.lexeme lexer
-parens = PT.parens lexer
-brackets = PT.brackets lexer
-comma = PT.comma lexer
-colon = PT.colon lexer
-commaSep = PT.commaSep lexer
-commaSep1 = PT.commaSep1 lexer
-dot = PT.dot lexer
-reservedOp = PT.reservedOp lexer
+unitName :: T.Unit -> String
+unitName (T.Unit (Left (T.Atom name)) _ _) = show name
+unitName (T.Unit (Right name) _ _) = show name
 
--- Formatting helpers
-format2 = printf "%s %s" :: String -> String -> String
-format3 = printf "%s %s %s" :: String -> String -> String -> String
+unitFOF :: T.Unit -> T.UnsortedFirstOrder
+unitFOF (T.Unit _ (T.Formula _ (T.FOF form)) _) = form
 
--- Main parser
-namedFormula :: StringParser (String, String, Formula)
-namedFormula = do
-    symbol "fof"
-    (name, role, form) <- parens (do
-        name <- ident
-        comma
-        role <- ident
-        comma
-        form <- parens logicFormula
-        return (name, role, form))
-    dot
-    eof
-    return (name, role, form)
+unitFolly :: T.Unit -> F.Formula
+unitFolly = fofAsFolly . unitFOF
 
--- Expression parser
-logicFormula :: StringParser Formula
--- logicFormula = unaryFormula <|> try binaryFormula <|> unitaryFormula :: StringParser Formula
-logicFormula = unaryFormula <|> unitaryFormula
-unitFormula = unitaryFormula <|> unaryFormula
-unitaryFormula = quantifiedFormula <|> atomicFormula <|> parens logicFormula
+-- Convert a TPTP FOF to Folly
+fofAsFolly :: T.UnsortedFirstOrder -> F.Formula
+fofAsFolly (T.Atomic (T.Predicate name terms)) = F.pr (show name) (fofTerms terms)
+fofAsFolly (T.Negated form) = F.neg (fofAsFolly form)
+fofAsFolly (T.Connected f1 con f2) =
+    (fofConnective con) (fofAsFolly f1) (fofAsFolly f2)
+fofAsFolly (T.Quantified quant vars form) =
+    quantAsFolly (fofQuantifier quant) (toList vars) (fofAsFolly form)
 
-atomicFormula = try atomicPredicate <|> atomicConstant
-atomicConstant = (flip F.pr []) <$> ident
-atomicPredicate = do
-    predicate <- ident
-    args <- parens (commaSep1 term)
-    return (F.pr predicate args)
+-- TODO: deal with equality
+fofAsFolly (T.Atomic (T.Equality t1 (T.Positive) t2)) = F.f
+fofAsFolly (T.Atomic (T.Equality t1 (T.Negative) t2)) = F.f
 
+-- Helpers to convert various forms
+quantAsFolly :: FollyQuantifier -> [(T.Var, T.Unsorted)] -> F.Formula -> F.Formula
+quantAsFolly _ [] form = form
+quantAsFolly quant ((T.Var var, _):vars) form =
+    quant (F.var (show var)) (quantAsFolly quant vars form)
 
-term = try func <|> variable
-func = F.func <$> ident <*> (parens $ commaSep1 $ term)
-variable = F.var <$> ident
+fofTerm :: T.Term -> F.Term
+fofTerm (T.Function name terms) = F.func (show name) (fofTerms terms)
+fofTerm (T.Variable v) = F.var (show $ pretty v)
+fofTerm (T.Number n) = F.constant (show $ pretty n)
+fofTerm (T.DistinctTerm obj) = F.constant (show $ pretty obj)
+fofTerms = map fofTerm
 
-unaryFormula = do
-    reservedOp "~"
-    form <- unitFormula
-    return (F.neg form)
+type FollyConnective = (F.Formula -> F.Formula -> F.Formula)
+fofConnective :: T.Connective -> FollyConnective
+fofConnective T.Conjunction = F.con
+fofConnective T.Disjunction = F.dis
+fofConnective T.Implication = F.imp
+fofConnective T.Equivalence = F.bic
+fofConnective T.ExclusiveOr = \f1 f2 -> F.neg (F.bic f1 f2)
+fofConnective T.NegatedConjunction = \f1 f2 -> F.neg (F.con f1 f2)
+fofConnective T.NegatedDisjunction = \f1 f2 -> F.neg (F.dis f1 f2)
+fofConnective T.ReversedImplication = \f1 f2 -> F.imp (F.neg f1) (F.neg f2)
 
--- TODO: parse binary connectives
--- binaryFormula = format3 <$> unitFormula <*> binaryConnective <*> unitFormula
--- binaryConnective = choice (map symbol binaryConnectiveNames)
-
-quantifier = (\q -> case q of
-                "!" -> F.fa
-                "?" -> F.te
-                _ -> error "Invalid quantifier")
-        <$> choice (map symbol quantNames)
-
-quantifiedFormula = do
-    quant <- quantifier
-    vars <- brackets (commaSep1 variable)
-    colon
-    form <- unitFormula
-    return (makeQuantified quant vars form)
-      where
-        makeQuantified :: (F.Term -> F.Formula -> F.Formula) ->
-            [F.Term] -> F.Formula -> F.Formula
-        makeQuantified _ [] form = form
-        makeQuantified q (vars : rest) f = q vars (makeQuantified q rest f)
-
--- equality = symbol "=" -- TODO: handle equality
+type FollyQuantifier = (F.Term -> F.Formula -> F.Formula)
+fofQuantifier :: T.Quantifier -> FollyQuantifier
+fofQuantifier T.Forall = F.fa
+fofQuantifier T.Exists = F.te
