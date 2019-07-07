@@ -1,12 +1,14 @@
--- Parses the subset of the TPTP language needed for FOL Mizar statements
+-- Parses the subset of the TPTP language needed for FOL statements
 -- See: http://www.tptp.org/TPTP/SyntaxBNF.html
+
+-- TODO: add Mizar standard axioms
 
 module TPTPParser where
 
 import Data.Either
 import Data.Maybe (catMaybes)
 import Data.List.NonEmpty (toList)
-import Data.List (intercalate)
+import Data.List (intercalate, isPrefixOf)
 import Data.Text (pack)
 import System.FilePath
 
@@ -15,9 +17,21 @@ import Data.TPTP.Parse.Text (parseUnitOnly)
 import Data.TPTP.Pretty (pretty)
 
 import qualified Folly.Formula as F
+import Folly.Theorem (theorem)
 import Folly.Formula (Term (..), Formula (..))
 
+import FOLEquality
+
 inputFile = "./data/mizar_statements.txt"
+
+-- Test code
+testFile = "./test_problem.txt"
+testTheorem = do
+    namedFormulas <- fileToFolly testFile
+    let formulas = map formulaForm namedFormulas
+        axioms = init formulas
+        conjecture = last formulas
+    return (theorem (addEqualityAxioms axioms) conjecture)
 
 -- Type of Folly formulas with names
 newtype NamedFormula = Named (String, F.Formula) deriving (Eq, Ord)
@@ -41,7 +55,6 @@ stringsToFolly strings = catMaybes (map stringToFolly strings)
 fileToFolly :: String -> IO [NamedFormula]
 fileToFolly path = (readFile path) >>= (return . stringsToFolly . lines)
 
--- TODO: add Mizar standard axioms
 translateFile :: String -> IO ()
 translateFile inputPath = do
     forms <- fileToFolly inputPath
@@ -66,16 +79,18 @@ unitFolly = fofAsFolly . unitFOF
 
 -- Convert a TPTP FOF to Folly
 fofAsFolly :: T.UnsortedFirstOrder -> F.Formula
-fofAsFolly (T.Atomic (T.Predicate name terms)) = F.pr (show name) (fofTerms terms)
+fofAsFolly (T.Atomic (T.Predicate name terms)) = F.pr (show $ pretty name) (fofTerms terms)
 fofAsFolly (T.Negated form) = F.neg (fofAsFolly form)
 fofAsFolly (T.Connected f1 con f2) =
     (fofConnective con) (fofAsFolly f1) (fofAsFolly f2)
 fofAsFolly (T.Quantified quant vars form) =
     quantAsFolly (fofQuantifier quant) (toList vars) (fofAsFolly form)
 
--- TODO: deal with equality
-fofAsFolly (T.Atomic (T.Equality t1 (T.Positive) t2)) = F.f
-fofAsFolly (T.Atomic (T.Equality t1 (T.Negative) t2)) = F.f
+-- NOTE: for this to work, the system must include the equality axioms
+fofAsFolly (T.Atomic (T.Equality t1 (T.Positive) t2)) =
+    equals (fofTerm t1) (fofTerm t2)
+fofAsFolly (T.Atomic (T.Equality t1 (T.Negative) t2)) =
+    F.neg (equals (fofTerm t1) (fofTerm t2))
 
 -- Helpers to convert various forms
 quantAsFolly :: FollyQuantifier -> [(T.Var, T.Unsorted)] -> F.Formula -> F.Formula
@@ -84,7 +99,7 @@ quantAsFolly quant ((T.Var var, _):vars) form =
     quant (F.var (show var)) (quantAsFolly quant vars form)
 
 fofTerm :: T.Term -> F.Term
-fofTerm (T.Function name terms) = F.func (show name) (fofTerms terms)
+fofTerm (T.Function name terms) = F.func (show $ pretty name) (fofTerms terms)
 fofTerm (T.Variable v) = F.var (show $ pretty v)
 fofTerm (T.Number n) = F.constant (show $ pretty n)
 fofTerm (T.DistinctTerm obj) = F.constant (show $ pretty obj)
